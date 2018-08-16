@@ -8,6 +8,7 @@
 
 from math import log2
 from copy import copy
+from utils import load_breast_cancer, train_test_split, get_acc, run_time
 
 
 class Node(object):
@@ -28,10 +29,10 @@ class Node(object):
 class DecisionTree(object):
     def __init__(self):
         """DecisionTree class only support binary classification with ID3.
+
         Attributes:
-        root: the root node of DecisionTree
-        height: the height of DecisionTree
-        _split_effect: number of samples, positive probability and rate in split set of each split group
+            root: the root node of DecisionTree
+            height: the height of DecisionTree
         """
 
         self.root = Node()
@@ -48,7 +49,7 @@ class DecisionTree(object):
             split {float} -- Split point of x
 
         Returns:
-            named tuple -- split effect
+            tuple -- prob, rate
         """
 
         n = len(idx)
@@ -72,6 +73,25 @@ class DecisionTree(object):
 
     def _get_entropy(self, p):
         """Calculate entropy
+        Probability:
+        P(X=x_i) = p_i, i <- [1, n]
+
+        Entropy: 
+        H(p) = -Sum(p_i * log(p_i)), i <- [1, n]
+
+        Take binary classifaction for exmaple, 
+        Likelihood function, yi <- y, and p is a constant:
+        Likelihood = Product(p^yi * (1-p)^(1-yi))
+
+        Take the logarithm of both sides of this equation:
+        L = Sum(yi * logp + (1-yi) * log(1-p))
+
+        L / m = Sum(yi/m * logp + (1-yi) / m * log(1-p))
+        L / m = Sum(p * logp + (1-p) * log(1-p))
+        L / m = H(p)
+
+        So Maximising the Entropy equals to Maximising the likelihood
+        -------------------------------------------------------------
 
         Arguments:
             p {float} -- Positive probability
@@ -88,6 +108,12 @@ class DecisionTree(object):
 
     def _get_info(self, y, idx):
         """Calculate info of y
+        Probability:
+        P(y=y_i) = p_i, i <- [1, n]
+
+        Entropy: 
+        Info(y) = H(p) = -Sum(p_i * log(p_i)), i <- [1, n]
+        --------------------------------------------------
 
         Arguments:
             y {list} -- 1d list object with int 0 or 1
@@ -97,11 +123,18 @@ class DecisionTree(object):
             float -- Info of y
         """
 
-        p = sum([y[i] for i in idx]) / len(idx)
+        p = sum(y[i] for i in idx) / len(idx)
         return self._get_entropy(p)
 
     def _get_cond_info(self, prob, rate):
-        """Calculate conditonal info of x
+        """Calculate conditonal info of x, y
+        Conditional Probability:
+        Suppose there are k cases:
+        P(A = A_i), i <- [1, k]
+
+        Entropy: 
+        CondInfo(X, y) = -Sum(p_i * H(y | A = A_i)), i <- [1, k]
+        -------------------------------------------------------
 
         Arguments:
             prob {list} -- [left node probability, right node probability]
@@ -115,9 +148,12 @@ class DecisionTree(object):
         info_right = self._get_entropy(prob[1])
         return rate[0] * info_left + rate[1] * info_right
 
-    def _choose_split_point(self, X, y, idx, feature):
+    def _choose_split(self, X, y, idx, feature):
         """Iterate each xi and split x, y into two pieces,
         and the best split point is the xi when we get max gain.
+        Info gain:
+        Gain(X, y) = Info(y) - CondInfo(X, y)
+        ---------------------------------------------------------
 
         Arguments:
             x {list} -- 1d list object with int or float
@@ -159,28 +195,37 @@ class DecisionTree(object):
             idx {list} -- indexes, 1d list object with int
 
         Returns:
-            tuple -- (feature number, split point, probability, idx_split)
+            tuple -- (feature number, split point, probability)
         """
 
         m = len(X[0])
         # Compare the info gain of each feature and choose best one.
-        split_rets = [x for x in map(lambda x: self._choose_split_point(
-            X, y, idx, x), range(m)) if x is not None]
-        # Terminate if no feature can be splitted
-        if split_rets == []:
-            return None
-        _, feature, split, prob = max(
-            split_rets, key=lambda x: x[0])
-        # Get split idx into two pieces and empty idx
-        idx_split = [[], []]
-        while idx:
-            i = idx.pop()
-            xi = X[i][feature]
+        split_rets = map(lambda x: self._choose_split(X, y, idx, x), range(m))
+        split_rets = filter(lambda x: x is not None, split_rets)
+        # Return None if no feature can be splitted
+        return max(split_rets, default=None, key=lambda x: x[0])
+
+    def _split_feature(self, X, idxs, feature, split):
+        """Split indexes into two arrays according to split point.
+
+        Arguments:
+            X {list} -- 2d list object with int or float
+            idx {list} -- indexes, 1d list object with int
+            feature {int} -- Feature number
+            split {float} -- Split point of the feature
+
+        Returns:
+            list -- [left idx, right idx]
+        """
+
+        idxs_split = [[], []]
+        for idx in idxs:
+            xi = X[idx][feature]
             if xi < split:
-                idx_split[0].append(i)
+                idxs_split[0].append(idx)
             else:
-                idx_split[1].append(i)
-        return feature, split, prob, idx_split
+                idxs_split[1].append(idx)
+        return idxs_split
 
     def _expr2literal(self, expr):
         """Auxiliary function of print_rules.
@@ -244,23 +289,24 @@ class DecisionTree(object):
         que = [[0, self.root, list(range(len(y)))]]
         # Breadth-First Search
         while que:
-            depth, nd, idx = que.pop(0)
+            depth, nd, idxs = que.pop(0)
             # Terminate loop if tree depth is more than max_depth
             if depth == max_depth:
                 break
             # Stop split when number of node samples is less than min_samples_split or Node is 100% pure.
-            if len(idx) < min_samples_split or nd.prob == 1 or nd.prob == 0:
+            if len(idxs) < min_samples_split or nd.prob == 1 or nd.prob == 0:
                 continue
             # Stop split if no feature has more than 2 unique elements
-            feature_rets = self._choose_feature(X, y, idx)
-            if feature_rets is None:
+            split_ret = self._choose_feature(X, y, idxs)
+            if split_ret is None:
                 continue
             # Split
-            nd.feature, nd.split, prob, idx_split = feature_rets
+            _, nd.feature, nd.split, prob = split_ret
+            idxs_split = self._split_feature(X, idxs, nd.feature, nd.split)
             nd.left = Node(prob[0])
             nd.right = Node(prob[1])
-            que.append([depth+1, nd.left, idx_split[0]])
-            que.append([depth+1, nd.right, idx_split[1]])
+            que.append([depth+1, nd.left, idxs_split[0]])
+            que.append([depth+1, nd.right, idxs_split[1]])
         # Update tree depth and rules
         self.height = depth
         self._get_rules()
@@ -320,11 +366,9 @@ class DecisionTree(object):
         return [int(y >= threshold) for y in self.predict_prob(X)]
 
 
-if __name__ == "__main__":
-    from time import time
-    from utils import load_breast_cancer, train_test_split
-
-    start = time()
+@run_time
+def main():
+    print("Tesing the accuracy of DecisionTree...")
     # Load data
     X, y = load_breast_cancer()
     # Split data randomly, train set rate 70%
@@ -335,8 +379,8 @@ if __name__ == "__main__":
     # Show rules
     clf.print_rules()
     # Model accuracy
-    acc = sum((y_test_hat == y_test for y_test_hat, y_test in zip(
-        clf.predict(X_test), y_test))) / len(y_test)
-    print("Test accuracy is %.2f%%!" % (acc * 100))
-    # Show run time, you can try it in Pypy which might be 10x faster.
-    print("Total run time is %.2f s" % (time() - start))
+    get_acc(clf, X_test, y_test)
+
+
+if __name__ == "__main__":
+    main()

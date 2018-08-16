@@ -7,8 +7,9 @@
 The paper links: http://cs.nju.edu.cn/zhouzh/zhouzh.files/publication/tkdd11.pdf
 """
 
-from random import sample, random, choice
+from random import sample, random, choice, randint
 from math import ceil, log
+from utils import run_time
 
 
 class Node(object):
@@ -119,21 +120,21 @@ class IsolationTree(object):
         # Update the height of IsolationTree
         self.height = depth
 
-    def _predict(self, row):
+    def _predict(self, xi):
         """Auxiliary function of predict.
 
         Arguments:
-            row {list} -- 1D list with int or float
+            xi {list} -- 1D list with int or float
 
         Returns:
-            int -- the depth of the node which the row belongs to
+            int -- the depth of the node which the xi belongs to
         """
 
-        # Search row from the IsolationTree until row is at an leafnode
+        # Search xi from the IsolationTree until xi is at an leafnode
         nd = self.root
         depth = 0
         while nd.left and nd.right:
-            if row[nd.split_feature] < nd.split_point:
+            if xi[nd.split_feature] < nd.split_point:
                 nd = nd.left
             else:
                 nd = nd.right
@@ -143,7 +144,7 @@ class IsolationTree(object):
 
 class IsolationForest(object):
     def __init__(self):
-        """IsolationForest, randomly build some IsolationTree instance, 
+        """IsolationForest, randomly build some IsolationTree instance,
         and the average score of each IsolationTree
 
 
@@ -190,21 +191,21 @@ class IsolationForest(object):
             ret = 0
         return ret
 
-    def _predict(self, row):
+    def _predict(self, xi):
         """Auxiliary function of predict.
 
         Arguments:
-            row {list} -- 1d list object with int or float
+            xi {list} -- 1d list object with int or float
 
         Returns:
             list -- 1d list object with float
         """
 
-        # Calculate average score of row at each tree
+        # Calculate average score of xi at each tree
         score = 0
         n_trees = len(self.trees)
         for tree in self.trees:
-            depth, node_size = tree._predict(row)
+            depth, node_size = tree._predict(xi)
             score += (depth + self._get_adjustment(node_size))
         score = score / n_trees
         # Scale
@@ -220,24 +221,24 @@ class IsolationForest(object):
             list -- 1d list object with float
         """
 
-        return [self._predict(row) for row in X]
+        return [self._predict(xi) for xi in X]
 
 
-if __name__ == "__main__":
-    from random import randint
-    from time import time
+@run_time
+def main():
+    print("Comparing average score of X and outlier's score...")
     # Generate a dataset randomly
-    n = 1000
+    n = 100
     X = [[random() for _ in range(5)] for _ in range(n)]
     # Add outliers
-    for _ in range(10):
-        X.append([10]*5)
-
-    start = time()
+    X.append([10]*5)
     # Train model
     clf = IsolationForest()
     clf.fit(X, n_samples=500)
     # Show result
-    for x, y in zip(X, clf.predict(X)):
-        print(' '.join(map(lambda num: "%.2f" % num, x)), "%.2f" % y)
-    print("Total run time is %.2f s" % (time() - start))
+    print("Average score is %.2f" % (sum(clf.predict(X)) / len(X)))
+    print("Outlier's score is %.2f" % clf._predict(X[-1]))
+
+
+if __name__ == "__main__":
+    main()

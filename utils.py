@@ -1,5 +1,7 @@
 import os
 from random import random, seed
+from time import time
+from math import exp
 
 
 def load_data(file_name):
@@ -20,9 +22,14 @@ def load_data(file_name):
     for line in f:
         line = line[:-1].split(",")
         xi = [float(s) for s in line[:-1]]
-        yi = int(line[-1])
+        yi = line[-1]
+        if '.' in yi:
+            yi = float(yi)
+        else:
+            yi = int(yi)
         X.append(xi)
         y.append(yi)
+    f.close()
     return X, y
 
 
@@ -91,3 +98,42 @@ def train_test_split(X, y, prob=0.7, random_state=None):
     # Make the fixed random_state random again
     seed()
     return X_train, X_test, y_train, y_test
+
+
+def get_acc(clf, X, y):
+    acc = sum((yi_hat == yi for yi_hat, yi in zip(clf.predict(X), y))) / len(y)
+    print("Test accuracy is %.3f%%!" % (acc * 100))
+    return acc
+
+
+def run_time(func):
+    def wrapper():
+        start = time()
+        func()
+        print("Total run time is %.2f s" % (time() - start))
+    return wrapper
+
+
+def get_r2(reg, X, y):
+    sse = sum((yi_hat - yi) ** 2 for yi_hat, yi in zip(reg.predict(X), y))
+    y_avg = sum(y) / len(y)
+    sst = sum((yi - y_avg) ** 2 for yi in y)
+    r2 = 1 - sse/sst
+    print("Test r2 is %.3f!" % r2)
+    return r2
+
+
+def sigmoid(x, x_min=-100):
+    """Sigmoid(x) = 1 / (1 + e^(-x))
+
+    Arguments:
+        x {float}
+
+    Keyword Arguments:
+        x_min {int} -- It would cause math range error when x < -709 (default: {-100})
+
+    Returns:
+        float -- between 0 and 1
+    """
+
+    return 1 / (1 + exp(-x)) if x > x_min else 0
