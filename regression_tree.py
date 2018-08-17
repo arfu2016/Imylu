@@ -17,11 +17,11 @@ class Node(object):
             score {float} -- prediction of y (default: {None})
         """
         self.score = score
+        self.feature = None
+        self.split = None
 
         self.left = None
         self.right = None
-        self.feature = None
-        self.split = None
 
 
 class RegressionTree(object):
@@ -189,6 +189,9 @@ class RegressionTree(object):
             min_samples_split {int} -- The minimum number of samples required
             to split an internal node (default: {2})
         """
+        # max_depth反映的是树的高度，最多决策多少步
+        # min_samples_split决定了在一个feature上可以反复split多少次，
+        # min_samples_split越小，可以split的次数越多
 
         # Initialize with depth, node, indexes
         self.root = Node()
