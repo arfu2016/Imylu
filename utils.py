@@ -2,6 +2,7 @@ import os
 from random import random, seed
 from time import time
 from math import exp
+import pandas as pd
 
 
 def load_data(file_name):
@@ -15,7 +16,11 @@ def load_data(file_name):
         y {list} -- 1d list object with int or float
     """
 
-    path = os.path.join(os.getcwd(), "dataset", "%s.csv" % file_name)
+    # path = os.path.join(os.getcwd(), "dataset", "%s.csv" % file_name)
+    base_dir = os.path.dirname(
+        os.path.abspath(__file__)
+    )
+    path = os.path.join(base_dir, "dataset", "%s.csv" % file_name)
     f = open(path)
     X = []
     y = []
@@ -33,12 +38,27 @@ def load_data(file_name):
     return X, y
 
 
+def load_to_df(file_name):
+    base_dir = os.path.dirname(
+        os.path.abspath(__file__)
+    )
+    path = os.path.join(base_dir, "dataset", "%s.csv" % file_name)
+    df = pd.read_csv(path)
+    X = df.iloc[:, :-1]
+    y = df.iloc[:, -1]
+    return X, y
+
+
 def load_breast_cancer():
     return load_data("breast_cancer")
 
 
 def load_boston_house_prices():
     return load_data("boston_house_prices")
+
+
+def load_boston_house_prices2():
+    return load_to_df("boston_house_prices")
 
 
 def min_max_scale(X):
@@ -99,6 +119,31 @@ def train_test_split(X, y, prob=0.7, random_state=None):
     seed()
     return X_train, X_test, y_train, y_test
 
+
+def train_test_split2(X, y, prob=0.7, random_state=None):
+
+    if random_state is not None:
+        seed(random_state)
+    X = X.values.tolist()
+    y = y.values.tolist()
+    X_train = []
+    X_test = []
+    y_train = []
+    y_test = []
+    for i in range(len(X)):
+        if random() < prob:
+            X_train.append(X[i])
+            y_train.append(y[i])
+        else:
+            X_test.append(X[i])
+            y_test.append(y[i])
+    # Make the fixed random_state random again
+    seed()
+    X_train = pd.DataFrame(X_train)
+    X_test = pd.DataFrame(X_test)
+    y_train = pd.DataFrame(y_train)
+    y_test = pd.DataFrame(y_test)
+    return X_train, X_test, y_train, y_test
 
 def get_acc(clf, X, y):
     acc = sum((yi_hat == yi for yi_hat, yi in zip(clf.predict(X), y))) / len(y)

@@ -7,7 +7,10 @@
 """
 import copy
 import numpy as np
-from utils import load_boston_house_prices, train_test_split, get_r2, run_time
+import pandas as pd
+from utils import (load_boston_house_prices, load_boston_house_prices2,
+                   train_test_split, train_test_split2,
+                   get_r2, run_time)
 from work5.logger_setup import define_logger
 logger = define_logger('work5.decision_regression')
 
@@ -114,7 +117,35 @@ class RegressionTree:
         split_info = self.condition_info_continuous(select_x, select_y, split)
         return split_info, split, [low_y, high_y]
 
-    def info_continuous(self, y):
+    def _get_category_info(self, X, y, idx, feature, category_idx):
+        """Calculate the standard deviation of each set when x is
+        splitted into two discrete parts.
+        The weighted standard deviation as loss function, the minimal value is best
+        std of the column - the weighted sum of std of the two groups
+        --------------------------------------------------------------------
+
+        Arguments:
+            X {list} -- 2d list object with int or float
+            y {list} -- 1d list object with int or float
+            idx {list} -- indexes, 1d list object with int
+            feature {int} -- Feature number, that is, column number of the dataframe
+            category_idx {str} -- Chosen category of x to conduct binary classification
+
+        Returns:
+            tuple -- MSE, split point and average of splitted x in each intervel
+        """
+        X = np.array(X)
+        select_x = X[idx, feature]
+        y = np.array(y)
+        select_y = y[idx]
+        low_y = select_y[select_x == category_idx].mean()
+        high_y = select_y[select_x != category_idx].mean()
+        # split_std_reduce = self.info_continuous(y) - self.condition_info(
+        #     select_x, select_y, split)
+        split_info = self.condition_info_categorical(select_x, select_y, category_idx)
+        return split_info, category_idx, [low_y, high_y]
+
+    def info(self, y):
         """用标准差的大小来表征连续变量的信息量的大小
         Arguments:
             y -- 1d list or numpy.ndarray object with int or float
@@ -133,10 +164,31 @@ class RegressionTree:
         # X中的元素低于split的比例，后来算加权平均的信息熵时要用到的权重
         high_rate = 1 - low_rate
 
-        low_info = self.info_continuous(y[np.where(X < split)])
+        low_info = self.info(y[np.where(X < split)])
         # np.where will give the index of True
         # X < split所对应的Y的值
-        high_info = self.info_continuous(y[np.where(X >= split)])
+        high_info = self.info(y[np.where(X >= split)])
+
+        res = low_rate * low_info + high_rate * high_info
+        # 加权平均计算分类后的信息熵
+
+        return res
+
+    def condition_info_categorical(self, X, y, category_idx):
+        """
+        the weighted continuous information
+        :param X: 1d pandas.df
+        :param Y: 1d pandas.df
+        :param category_idx: str
+        :return:
+        """
+        low_rate = (X == category_idx).sum() / X.size
+        # X中的元素低于split的比例，后来算加权平均的信息熵时要用到的权重
+        high_rate = 1 - low_rate
+
+        low_info = self.info(y[np.where(X == category_idx)])
+        # X < split所对应的Y的值
+        high_info = self.info(y[np.where(X != category_idx)])
 
         res = low_rate * low_info + high_rate * high_info
         # 加权平均计算分类后的信息熵
@@ -164,28 +216,73 @@ class RegressionTree:
         unique.remove(min(unique))
         # Get split point which has min mse
         mse, split, split_avg = min(
-            (self._get_split_mse(X, y, idx, feature, split)
+            (self._get_split_info(X, y, idx, feature, split)
+             # Here we can choose different algorithms
              # _get_split_mse _get_split_info
              for split in unique), key=lambda x: x[0])
         return mse, feature, split, split_avg
+
+    def _choose_category_point(self, X, y, idx, feature):
+        """Iterate each xi and classify x, y into two parts,
+        and the best category point is the xi when we get minimum info or mse.
+
+        Arguments:
+            x {list} -- 1d pandas.df with int, float or str
+            y {list} -- 1d pandas.df object with int or float
+            idx {list} -- indexes, 1d list object with int
+            feature {int} -- Feature number
+
+        Returns:
+            tuple -- The best choice of mse, feature, category point and average
+        """
+        # Feature cannot be splitted if there's only one unique element.
+        unique = set([X[i][feature] for i in idx])
+        if len(unique) == 1:
+            return None
+        # In case of empty split
+        unique.remove(min(unique))
+        # Get split point which has min mse
+        mse, category_idx, split_avg = min(
+            (self._get_category_info(X, y, idx, feature, category)
+             for category in unique), key=lambda x: x[0])
+        return mse, feature, category_idx, split_avg
+
+    def _detect_feature_type(self, x):
+        """
+
+        :param x: 1d pandas.df or pandas.series
+        :return: 0 or 1, 0 represents continuous, 1 represents discrete
+        """
+        for item in x.values.tolist():
+            if item is not None:
+                return 1 if type(item) == str else 0
 
     def _choose_feature(self, X, y, idx):
         """Choose the feature which has minimum mse.
 
         Arguments:
-            X {list} -- 2d list object with int or float
-            y {list} -- 1d list object with int or float
+            X {list} -- 2d pandas.df with int, float or str
+            y {list} -- 1d pandas.df with int or float
             idx {list} -- indexes, 1d list object with int
 
         Returns:
-            tuple -- (feature number, split point, average, idx_split)
+            tuple -- (feature number, classify point, average, idx_classify)
         """
 
-        m = len(X[0])
+        m = len(X.iloc[0])  # m = X.shape[1]?
         # x[0] selects the first row
         # Compare the mse of each feature and choose best one.
-        split_rets = [x for x in map(lambda x: self._choose_split_point(
-            X, y, idx, x), range(m)) if x is not None]
+        column_types = [self._detect_feature_type(X.iloc[:, i])
+                        for i in range(m)]
+        split_rets = []
+        for i in range(m):
+            if column_types[i]:
+                item = self._choose_category_point(X, y, idx, i)
+            else:
+                item = self._choose_split_point(X, y, idx, i)
+            if item is not None:
+                split_rets.append(item)
+
         # Terminate if no feature can be splitted
         if not split_rets:  # split_rets == []
             return None
@@ -197,10 +294,16 @@ class RegressionTree:
         while idx:
             i = idx.pop()
             xi = X[i][feature]
-            if xi < split:
-                idx_split[0].append(i)
+            if column_types[i]:
+                if xi == split:
+                    idx_split[0].append(i)
+                else:
+                    idx_split[1].append(i)
             else:
-                idx_split[1].append(i)
+                if xi < split:
+                    idx_split[0].append(i)
+                else:
+                    idx_split[1].append(i)
         return feature, split, split_avg, idx_split
 
     def _expr2literal(self, expr):
@@ -337,13 +440,13 @@ class RegressionTree:
         return [self._predict(Xi) for Xi in X]
 
 
-@run_time
-def main():
+# @run_time
+def test_continuous_continuous():
     print("Tesing the accuracy of RegressionTree...")
     # Load data
-    X, y = load_boston_house_prices()
+    X, y = load_boston_house_prices2()
     # Split data randomly, train set rate 70%
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_train, X_test, y_train, y_test = train_test_split2(
         X, y, random_state=10)
     # Train model
     reg = RegressionTree()
@@ -356,4 +459,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    test_continuous_continuous()
