@@ -250,30 +250,34 @@ class RegressionTree:
     def _detect_feature_type(self, x):
         """
 
-        :param x: 1d pandas.df or pandas.series
+        :param x: list
         :return: 0 or 1, 0 represents continuous, 1 represents discrete
         """
-        for item in x.values.tolist():
+        for item in x:
             if item is not None:
                 return 1 if type(item) == str else 0
+
+    def _get_column(self, X, i):
+        return [item[i] for item in X]
 
     def _choose_feature(self, X, y, idx):
         """Choose the feature which has minimum mse.
 
         Arguments:
-            X {list} -- 2d pandas.df with int, float or str
-            y {list} -- 1d pandas.df with int or float
+            X {list} -- 2d list with int, float or str
+            y {list} -- 1d list with int or float
             idx {list} -- indexes, 1d list object with int
 
         Returns:
             tuple -- (feature number, classify point, average, idx_classify)
         """
 
-        m = len(X.iloc[0])  # m = X.shape[1]?
+        m = len(X[0])  # m = X.shape[1]?
         # x[0] selects the first row
         # Compare the mse of each feature and choose best one.
-        column_types = [self._detect_feature_type(X.iloc[:, i])
+        column_types = [self._detect_feature_type(self._get_column(X, i))
                         for i in range(m)]
+        # logger.debug(column_types)
         split_rets = []
         for i in range(m):
             if column_types[i]:
@@ -293,8 +297,9 @@ class RegressionTree:
         # it contains different groups, and produces idx for next step
         while idx:
             i = idx.pop()
+            # logger.debug(i)
             xi = X[i][feature]
-            if column_types[i]:
+            if column_types[feature]:
                 if xi == split:
                     idx_split[0].append(i)
                 else:
@@ -373,6 +378,7 @@ class RegressionTree:
         # Initialize with depth, node, indexes
         self.root = Node()
         que = [[0, self.root, list(range(len(y)))]]
+        logger.debug(que)
         # Breadth-First Search
         # 决策树是一层一层构建起来的，所以要用广度优先算法
         while que:
@@ -440,13 +446,13 @@ class RegressionTree:
         return [self._predict(Xi) for Xi in X]
 
 
-# @run_time
+@run_time
 def test_continuous_continuous():
     print("Tesing the accuracy of RegressionTree...")
     # Load data
-    X, y = load_boston_house_prices2()
+    X, y = load_boston_house_prices()
     # Split data randomly, train set rate 70%
-    X_train, X_test, y_train, y_test = train_test_split2(
+    X_train, X_test, y_train, y_test = train_test_split(
         X, y, random_state=10)
     # Train model
     reg = RegressionTree()
