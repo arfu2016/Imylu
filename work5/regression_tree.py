@@ -6,12 +6,14 @@
 @Desc      : 
 """
 import copy
+
 import numpy as np
-from utils import (load_boston_house_prices,
-                   train_test_split,
-                   get_r2, run_time)
+
 from work5.load_bike_data import load_bike_sharing_data
 from work5.logger_setup import define_logger
+from work5.utils import (load_boston_house_prices, train_test_split,
+                         get_r2, run_time)
+
 logger = define_logger('work5.regression_tree')
 
 
@@ -33,15 +35,14 @@ class Node:
 
 class RegressionTree:
     def __init__(self):
-        """DecisionRegressionTree class.
+        """RegressionTree class.
 
         Decision tree is for discrete variables
         Regression tree is for continuous variables
-        DesicionRegressionTree can handle both
 
         Attributes:
-            root: the root node of DecisionTree
-            height: the height of DecisionTree
+        root: the root node of RegressionTree
+        height: the height of RegressionTree
         """
 
         self.root = Node()
@@ -51,7 +52,7 @@ class RegressionTree:
     def _get_split_mse(self, X, y, idx, feature, split):
         """Calculate the mse of each set when x is splitted into two pieces.
         MSE as Loss fuction:
-        y_hat = Sum(y_i) / n, i <- [1, n]
+        y_hat = Sum(y_i) / n, i <- [1, n], the average value in the interval
         Loss(y_hat, y) = Sum((y_hat - y_i) ^ 2), i <- [1, n]
         Loss = LossLeftNode+ LossRightNode
         --------------------------------------------------------------------
@@ -91,10 +92,7 @@ class RegressionTree:
 
     def _get_category_mse(self, X, y, idx, feature, category):
         """Calculate the mse of each set when x is splitted into two parts.
-        MSE as Loss fuction:
-        y_hat = Sum(y_i) / n, i <- [1, n]
-        Loss(y_hat, y) = Sum((y_hat - y_i) ^ 2), i <- [1, n]
-        Loss = LossLeftNode+ LossRightNode
+        MSE as Loss fuction.
         --------------------------------------------------------------------
 
         Arguments:
@@ -105,7 +103,7 @@ class RegressionTree:
             category {str} -- Category point of x
 
         Returns:
-            tuple -- MSE, split point and average of splitted x in each intervel
+            tuple -- MSE, category point and average of splitted x in each intervel
         """
 
         split_sum = [0, 0]
@@ -124,12 +122,20 @@ class RegressionTree:
                 split_sum[1] += yi
                 split_sqr_sum[1] += yi ** 2
         # Calculate the mse of y, D(X) = E{[X-E(X)]^2} = E(X^2)-[E(X)]^2
-        # 用y的均值来估计，减去实际的y的值
+        # Estimated by the mean of y, and then subtract the value of y
         # num*E{[X-E(X)]^2} = num*E(X^2)-num*[E(X)]^2
         split_avg = [split_sum[0] / split_cnt[0], split_sum[1] / split_cnt[1]]
         split_mse = [split_sqr_sum[0] - split_sum[0] * split_avg[0],
                      split_sqr_sum[1] - split_sum[1] * split_avg[1]]
         return sum(split_mse), category, split_avg
+
+    def _info(self, y):
+        """Use the standard deviation to measure the magnitude of information
+        用标准差的大小来表征连续变量的信息量的大小
+        Arguments:
+            y -- 1d list or numpy.ndarray object with int or float
+        """
+        return np.std(y)
 
     def _get_split_info(self, X, y, idx, feature, split):
         """Calculate the reduction of standard deviation of each set when x is
@@ -152,15 +158,10 @@ class RegressionTree:
         select_x = [item[feature] for item in X]
         select_x = np.array(select_x)
         select_x = select_x[idx]
-        # logger.debug(select_x)
-        # logger.debug(type(select_x[0]))
-        # logger.debug(split)
         y = np.array(y)
         select_y = y[idx]
         low_y = select_y[select_x < split].mean()
         high_y = select_y[select_x >= split].mean()
-        # split_std_reduce = self.info_continuous(y) - self.condition_info(
-        #     select_x, select_y, split)
         split_info = self.condition_info_continuous(select_x, select_y, split)
         return split_info, split, [low_y, high_y]
 
@@ -187,59 +188,44 @@ class RegressionTree:
         select_y = y[idx]
         low_y = select_y[select_x == category_idx].mean()
         high_y = select_y[select_x != category_idx].mean()
-        # split_std_reduce = self.info_continuous(y) - self.condition_info(
-        #     select_x, select_y, split)
         split_info = self.condition_info_categorical(
             select_x, select_y, category_idx)
         return split_info, category_idx, [low_y, high_y]
 
-    def info(self, y):
-        """用标准差的大小来表征连续变量的信息量的大小
-        Arguments:
-            y -- 1d list or numpy.ndarray object with int or float
-        """
-        return np.std(y)
-
-    def condition_info_continuous(self, X, y, split):
+    def condition_info_continuous(self, x, y, split):
         """
         the weighted continuous information, X is continuous
-        :param X: 1d numpy.array with int or float
+        :param x: 1d numpy.array with int or float
         :param y: 1d numpy.array int or float
         :param split: float
         :return: float
         """
-        low_rate = (X < split).sum() / X.size
-        # X中的元素低于split的比例，后来算加权平均的信息熵时要用到的权重
+        low_rate = (x < split).sum() / x.size
         high_rate = 1 - low_rate
 
-        low_info = self.info(y[np.where(X < split)])
-        # np.where will give the index of True
-        # X < split所对应的Y的值
-        high_info = self.info(y[np.where(X >= split)])
+        low_info = self._info(y[np.where(x < split)])
+        # np.where will give the index of True elements
+        high_info = self._info(y[np.where(x >= split)])
 
         res = low_rate * low_info + high_rate * high_info
-        # 加权平均计算分类后的信息熵
 
         return res
 
-    def condition_info_categorical(self, X, y, category_idx):
+    def condition_info_categorical(self, x, y, category_idx):
         """
         the weighted categorical information, X is categorical
-        :param X: 1d list with str
-        :param y: 1d list with int or float
+        :param x: 1d numpy.array with str
+        :param y: 1d numpy.array with int or float
         :param category_idx: str
         :return: float
         """
-        low_rate = (X == category_idx).sum() / X.size
-        # X中的元素低于split的比例，后来算加权平均的信息熵时要用到的权重
+        low_rate = (x == category_idx).sum() / x.size
         high_rate = 1 - low_rate
 
-        low_info = self.info(y[np.where(X == category_idx)])
-        # X < split所对应的Y的值
-        high_info = self.info(y[np.where(X != category_idx)])
+        low_info = self._info(y[np.where(x == category_idx)])
+        high_info = self._info(y[np.where(x != category_idx)])
 
         res = low_rate * low_info + high_rate * high_info
-        # 加权平均计算分类后的信息熵
 
         return res
 
@@ -248,7 +234,7 @@ class RegressionTree:
         and the best split point is the xi when we get minimum mse.
 
         Arguments:
-            x {list} -- 1d list object with int or float
+            X {list} -- 2d list object with int or float
             y {list} -- 1d list object with int or float
             idx {list} -- indexes, 1d list object with int
             feature {int} -- Feature number
@@ -275,7 +261,7 @@ class RegressionTree:
         and the best category point is the xi when we get minimum info or mse.
 
         Arguments:
-            x {list} -- 1d list with str
+            X {list} -- 2d list with str
             y {list} -- 1d list object with int or float
             idx {list} -- indexes, 1d list object with int
             feature {int} -- Feature number
@@ -287,12 +273,17 @@ class RegressionTree:
         unique = set([X[i][feature] for i in idx])
         if len(unique) == 1:
             return None
-        # 如果该column只剩一个类别的话，就返回None
+        # If there is only one category left, None should be returned
         # In case of empty split
+
         # unique.remove(min(unique))
+        #  We don't need this for categorical situation
+
         # Get split point which has min mse
         mse, category_idx, split_avg = min(
             (self._get_category_mse(X, y, idx, feature, category)
+             # Here we can choose different algorithms
+             # _get_category_mse _get_category_info
              for category in unique), key=lambda x: x[0])
         # logger.debug(split_avg)
         return mse, feature, category_idx, split_avg
@@ -307,8 +298,8 @@ class RegressionTree:
             if item is not None:
                 return 1 if type(item) == str else 0
 
-    def _get_column(self, X, i):
-        return [item[i] for item in X]
+    def _get_column(self, x, i):
+        return [item[i] for item in x]
 
     def _choose_feature(self, X, y, idx):
         """Choose the feature which has minimum mse or minimal info.
@@ -319,7 +310,8 @@ class RegressionTree:
             idx {list} -- indexes, 1d list object with int
 
         Returns:
-            tuple -- (feature number, classify point, average, idx_classify)
+            tuple -- (feature number, classify point or split point,
+            average, idx_classify)
             could be None
         """
 
@@ -340,8 +332,7 @@ class RegressionTree:
         # Terminate if no feature can be splitted
         if not split_rets:  # split_rets == []
             return None
-        _, feature, split, split_avg = min(
-            split_rets, key=lambda x: x[0])
+        _, feature, split, split_avg = min(split_rets, key=lambda x: x[0])
         # Get split idx into two pieces and empty the idx.
         idx_split = [[], []]
         # it contains different groups, and produces idx for next step
@@ -382,7 +373,11 @@ class RegressionTree:
     def _get_rules(self):
         """Get the rules of all the decision tree leaf nodes.
             Print the rules with breadth-first search for a tree
+
+            first print the leaves in shallow postions, then print
+            from left to right
             广度有限搜索，先打印的是比较浅的叶子，然后从左往右打印
+
             Expr: 1D list like [Feature, op, split]
             Rule: 2D list like [[Feature, op, split], score]
             Op: -1 means less than, 1 means equal or more than
@@ -416,7 +411,7 @@ class RegressionTree:
             At least there's one column in X has more than 2 unique elements
             y cannot be all the same value
 
-        Arguments:
+        Position arguments:
             X {list} -- 2d list object with int or float
             y {list} -- 1d list object with int or float
 
@@ -425,7 +420,12 @@ class RegressionTree:
             min_samples_split {int} -- The minimum number of samples required
             to split an internal node (default: {2})
         """
+        # max_depth reflects the height of the tree, at most how many steps
+        # will we take to make decisions
         # max_depth反映的是树的高度，最多决策多少步
+
+        # min_samples_split determines how many times we could split in a
+        # feture, the smaller min_samples_split is, the more times
         # min_samples_split决定了在一个feature上可以反复split多少次，
         # min_samples_split越小，可以split的次数越多
 
@@ -442,20 +442,26 @@ class RegressionTree:
         while que:
             depth, nd, idx = que.pop(0)
             # Terminate loop if tree depth is more than max_depth
+
+            # At first, que is a list with only one element, if there is no new
+            # elements added to que, the loop can only run once
             # que开始是只有一个元素的list，如果没有新的元素加入，就只能循环一次，下一次que就为空了
+
             if depth == max_depth:
                 break
             # Stop split when number of node samples is less than
             # min_samples_split or Node is 100% pure.
-            if len(idx) < min_samples_split or \
-                    set(map(lambda i: y[i], idx)) == 1:
+            if len(idx) < min_samples_split or set(
+                    map(lambda i: y[i], idx)) == 1:
                 continue
             # Stop split if no feature has more than 2 unique elements
             feature_rets = self._choose_feature(X, y, idx)
-            # None表示这些idx的X都没法继续分类了
+
             if feature_rets is None:
                 continue
-            # 对于这些idx的X，已经没法再细分了，所以对于这些idx的X，继续分类就结束了
+            # if feature_rets is None, it means that for X's with these idx,
+            # the split should be stopped
+
             # Split
             nd.feature, nd.split, split_avg, idx_split = feature_rets
             nd.left = Node(split_avg[0])
@@ -488,11 +494,13 @@ class RegressionTree:
         nd = self.root
         while nd.left and nd.right:
             if self.feature_types[nd.feature]:
+                # categorical split
                 if row[nd.feature] == nd.split:
                     nd = nd.left
                 else:
                     nd = nd.right
             else:
+                # continuous split
                 if row[nd.feature] < nd.split:
                     nd = nd.left
                 else:
@@ -501,7 +509,7 @@ class RegressionTree:
 
     def predict(self, X):
         """Get the prediction of y.
-        可以批量预测
+        Prediction in batch, 批量预测
 
         Arguments:
             X {list} -- 2d list object with int or float

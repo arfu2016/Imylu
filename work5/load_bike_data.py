@@ -24,12 +24,15 @@ def transform_data():
         cnt_df[field] = cnt_df[field].astype('str')
     # logger.debug(cnt_df.dtypes)
 
-    # quant_features = ['cnt', 'temp', 'hum', 'windspeed']
-    # # Store scalings in a dictionary so we can convert back later
-    # for each in quant_features:
-    #     mean, std = cnt_df[each].mean(), cnt_df[each].std()
-    #     scaled_features[each] = [mean, std]
-    #     cnt_df.loc[:, each] = (cnt_df[each] - mean) / std
+    # For regression tree, we don't need feature scaling
+    '''
+    quant_features = ['cnt', 'temp', 'hum', 'windspeed']
+    # Store scalings in a dictionary so we can convert back later
+    for each in quant_features:
+        mean, std = cnt_df[each].mean(), cnt_df[each].std()
+        scaled_features[each] = [mean, std]
+        cnt_df.loc[:, each] = (cnt_df[each] - mean) / std
+        '''
     return cnt_df
 
 
