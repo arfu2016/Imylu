@@ -7,9 +7,8 @@
 """
 import copy
 import numpy as np
-import pandas as pd
-from utils import (load_boston_house_prices, load_boston_house_prices2,
-                   train_test_split, train_test_split2,
+from utils import (load_boston_house_prices,
+                   train_test_split,
                    get_r2, run_time)
 from work5.logger_setup import define_logger
 logger = define_logger('work5.decision_regression')
@@ -92,7 +91,7 @@ class RegressionTree:
         """Calculate the reduction of standard deviation of each set when x is
         splitted into two pieces.
         Reduction of standard deviation as Loss fuction, the maximal reduction is best
-        Or standard deviation as loss function, the minimal value is best
+        Or weighted standard deviation as loss function, the minimal value is best
         std of the column - the weighted sum of std of the two groups
         --------------------------------------------------------------------
 
@@ -132,7 +131,7 @@ class RegressionTree:
             category_idx {str} -- Chosen category of x to conduct binary classification
 
         Returns:
-            tuple -- MSE, split point and average of splitted x in each intervel
+            tuple -- MSE, classify point and average of splitted x in each intervel
         """
         X = np.array(X)
         select_x = X[idx, feature]
@@ -154,11 +153,11 @@ class RegressionTree:
 
     def condition_info_continuous(self, X, y, split):
         """
-        the weighted continuous information
-        :param X: 1d numpy.ndarray
-        :param Y: 1d numpy.ndarray
+        the weighted continuous information, X is continuous
+        :param X: 1d list with int or float
+        :param y: 1d list with int or float
         :param split: float
-        :return:
+        :return: float
         """
         low_rate = (X < split).sum() / X.size
         # X中的元素低于split的比例，后来算加权平均的信息熵时要用到的权重
@@ -176,11 +175,11 @@ class RegressionTree:
 
     def condition_info_categorical(self, X, y, category_idx):
         """
-        the weighted continuous information
-        :param X: 1d pandas.df
-        :param Y: 1d pandas.df
+        the weighted categorical information, X is categorical
+        :param X: 1d list with str
+        :param y: 1d list with int or float
         :param category_idx: str
-        :return:
+        :return: float
         """
         low_rate = (X == category_idx).sum() / X.size
         # X中的元素低于split的比例，后来算加权平均的信息熵时要用到的权重
@@ -227,8 +226,8 @@ class RegressionTree:
         and the best category point is the xi when we get minimum info or mse.
 
         Arguments:
-            x {list} -- 1d pandas.df with int, float or str
-            y {list} -- 1d pandas.df object with int or float
+            x {list} -- 1d list with str
+            y {list} -- 1d list object with int or float
             idx {list} -- indexes, 1d list object with int
             feature {int} -- Feature number
 
@@ -239,6 +238,7 @@ class RegressionTree:
         unique = set([X[i][feature] for i in idx])
         if len(unique) == 1:
             return None
+        # 如果该column只剩一个类别的话，就返回None
         # In case of empty split
         unique.remove(min(unique))
         # Get split point which has min mse
@@ -249,8 +249,8 @@ class RegressionTree:
 
     def _detect_feature_type(self, x):
         """
-
-        :param x: list
+        To determine the type of the feature
+        :param x: 1d list with int, float or str
         :return: 0 or 1, 0 represents continuous, 1 represents discrete
         """
         for item in x:
@@ -261,7 +261,7 @@ class RegressionTree:
         return [item[i] for item in X]
 
     def _choose_feature(self, X, y, idx):
-        """Choose the feature which has minimum mse.
+        """Choose the feature which has minimum mse or minimal info.
 
         Arguments:
             X {list} -- 2d list with int, float or str
@@ -270,9 +270,10 @@ class RegressionTree:
 
         Returns:
             tuple -- (feature number, classify point, average, idx_classify)
+            could be None
         """
 
-        m = len(X[0])  # m = X.shape[1]?
+        m = len(X[0])
         # x[0] selects the first row
         # Compare the mse of each feature and choose best one.
         column_types = [self._detect_feature_type(self._get_column(X, i))
@@ -286,6 +287,7 @@ class RegressionTree:
                 item = self._choose_split_point(X, y, idx, i)
             if item is not None:
                 split_rets.append(item)
+            # If it is None, it will not be considered as the chosen feature
 
         # Terminate if no feature can be splitted
         if not split_rets:  # split_rets == []
@@ -378,12 +380,13 @@ class RegressionTree:
         # Initialize with depth, node, indexes
         self.root = Node()
         que = [[0, self.root, list(range(len(y)))]]
-        logger.debug(que)
+        # logger.debug(que)
         # Breadth-First Search
         # 决策树是一层一层构建起来的，所以要用广度优先算法
         while que:
             depth, nd, idx = que.pop(0)
             # Terminate loop if tree depth is more than max_depth
+            # que开始是只有一个元素的list，如果没有新的元素加入，就只能循环一次，下一次que就为空了
             if depth == max_depth:
                 break
             # Stop split when number of node samples is less than
@@ -393,8 +396,10 @@ class RegressionTree:
                 continue
             # Stop split if no feature has more than 2 unique elements
             feature_rets = self._choose_feature(X, y, idx)
+            # None表示这些idx的X都没法继续分类了
             if feature_rets is None:
                 continue
+            # 对于这些idx的X，已经没法再细分了，所以对于这些idx的X，继续分类就结束了
             # Split
             nd.feature, nd.split, split_avg, idx_split = feature_rets
             nd.left = Node(split_avg[0])

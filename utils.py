@@ -120,31 +120,6 @@ def train_test_split(X, y, prob=0.7, random_state=None):
     return X_train, X_test, y_train, y_test
 
 
-def train_test_split2(X, y, prob=0.7, random_state=None):
-
-    if random_state is not None:
-        seed(random_state)
-    X = X.values.tolist()
-    y = y.values.tolist()
-    X_train = []
-    X_test = []
-    y_train = []
-    y_test = []
-    for i in range(len(X)):
-        if random() < prob:
-            X_train.append(X[i])
-            y_train.append(y[i])
-        else:
-            X_test.append(X[i])
-            y_test.append(y[i])
-    # Make the fixed random_state random again
-    seed()
-    X_train = pd.DataFrame(X_train)
-    X_test = pd.DataFrame(X_test)
-    y_train = pd.DataFrame(y_train)
-    y_test = pd.DataFrame(y_test)
-    return X_train, X_test, y_train, y_test
-
 def get_acc(clf, X, y):
     acc = sum((yi_hat == yi for yi_hat, yi in zip(clf.predict(X), y))) / len(y)
     print("Test accuracy is %.3f%%!" % (acc * 100))
