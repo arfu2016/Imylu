@@ -44,9 +44,7 @@ def load_to_df(file_name):
     )
     path = os.path.join(base_dir, "dataset", "%s.csv" % file_name)
     df = pd.read_csv(path)
-    X = df.iloc[:, :-1]
-    y = df.iloc[:, -1]
-    return X, y
+    return df
 
 
 def load_breast_cancer():

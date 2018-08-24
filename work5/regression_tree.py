@@ -10,8 +10,9 @@ import numpy as np
 from utils import (load_boston_house_prices,
                    train_test_split,
                    get_r2, run_time)
+from work5.load_bike_data import load_bike_sharing_data
 from work5.logger_setup import define_logger
-logger = define_logger('work5.decision_regression')
+logger = define_logger('work5.regression_tree')
 
 
 class Node:
@@ -45,6 +46,7 @@ class RegressionTree:
 
         self.root = Node()
         self.height = 0
+        self.feature_types = None
 
     def _get_split_mse(self, X, y, idx, feature, split):
         """Calculate the mse of each set when x is splitted into two pieces.
@@ -105,8 +107,12 @@ class RegressionTree:
         Returns:
             tuple -- MSE, split point and average of splitted x in each intervel
         """
-        X = np.array(X)
-        select_x = X[idx, feature]
+        select_x = [item[feature] for item in X]
+        select_x = np.array(select_x)
+        select_x = select_x[idx]
+        # logger.debug(select_x)
+        # logger.debug(type(select_x[0]))
+        # logger.debug(split)
         y = np.array(y)
         select_y = y[idx]
         low_y = select_y[select_x < split].mean()
@@ -141,7 +147,8 @@ class RegressionTree:
         high_y = select_y[select_x != category_idx].mean()
         # split_std_reduce = self.info_continuous(y) - self.condition_info(
         #     select_x, select_y, split)
-        split_info = self.condition_info_categorical(select_x, select_y, category_idx)
+        split_info = self.condition_info_categorical(
+            select_x, select_y, category_idx)
         return split_info, category_idx, [low_y, high_y]
 
     def info(self, y):
@@ -154,8 +161,8 @@ class RegressionTree:
     def condition_info_continuous(self, X, y, split):
         """
         the weighted continuous information, X is continuous
-        :param X: 1d list with int or float
-        :param y: 1d list with int or float
+        :param X: 1d numpy.array with int or float
+        :param y: 1d numpy.array int or float
         :param split: float
         :return: float
         """
@@ -240,11 +247,12 @@ class RegressionTree:
             return None
         # 如果该column只剩一个类别的话，就返回None
         # In case of empty split
-        unique.remove(min(unique))
+        # unique.remove(min(unique))
         # Get split point which has min mse
         mse, category_idx, split_avg = min(
             (self._get_category_info(X, y, idx, feature, category)
              for category in unique), key=lambda x: x[0])
+        # logger.debug(split_avg)
         return mse, feature, category_idx, split_avg
 
     def _detect_feature_type(self, x):
@@ -276,12 +284,10 @@ class RegressionTree:
         m = len(X[0])
         # x[0] selects the first row
         # Compare the mse of each feature and choose best one.
-        column_types = [self._detect_feature_type(self._get_column(X, i))
-                        for i in range(m)]
-        # logger.debug(column_types)
+
         split_rets = []
         for i in range(m):
-            if column_types[i]:
+            if self.feature_types[i]:
                 item = self._choose_category_point(X, y, idx, i)
             else:
                 item = self._choose_split_point(X, y, idx, i)
@@ -301,7 +307,7 @@ class RegressionTree:
             i = idx.pop()
             # logger.debug(i)
             xi = X[i][feature]
-            if column_types[feature]:
+            if self.feature_types[feature]:
                 if xi == split:
                     idx_split[0].append(i)
                 else:
@@ -324,8 +330,12 @@ class RegressionTree:
         """
 
         feature, op, split = expr
-        op = ">=" if op == 1 else "<"
-        return "Feature%d %s %.4f" % (feature, op, split)
+        if type(split) == float or type(split) == int:
+            op = ">=" if op == 1 else "<"
+            return "Feature%d %s %.4f" % (feature, op, split)
+        if type(split) == str:
+            op = "==" if op == 1 else "!="
+            return "Feature%d %s %s" % (feature, op, split)
 
     def _get_rules(self):
         """Get the rules of all the decision tree leaf nodes.
@@ -383,6 +393,10 @@ class RegressionTree:
         # logger.debug(que)
         # Breadth-First Search
         # 决策树是一层一层构建起来的，所以要用广度优先算法
+        m = len(X[0])
+        self.feature_types = [self._detect_feature_type(self._get_column(X, i))
+                              for i in range(m)]
+        logger.debug(self.feature_types)
         while que:
             depth, nd, idx = que.pop(0)
             # Terminate loop if tree depth is more than max_depth
@@ -431,10 +445,16 @@ class RegressionTree:
 
         nd = self.root
         while nd.left and nd.right:
-            if row[nd.feature] < nd.split:
-                nd = nd.left
+            if self.feature_types[nd.feature]:
+                if row[nd.feature] == nd.split:
+                    nd = nd.left
+                else:
+                    nd = nd.right
             else:
-                nd = nd.right
+                if row[nd.feature] < nd.split:
+                    nd = nd.left
+                else:
+                    nd = nd.right
         return nd.score
 
     def predict(self, X):
@@ -469,5 +489,26 @@ def test_continuous_continuous():
     get_r2(reg, X_test, y_test)
 
 
+@run_time
+def test_arbitrary_continuous():
+    print("Tesing the accuracy of RegressionTree...")
+    # Load data
+    X, y = load_bike_sharing_data()
+    logger.debug(X[0])
+    logger.debug([max(y), sum(y)/len(y), min(y)])
+    # Split data randomly, train set rate 70%
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, random_state=10)
+    # Train model
+    reg = RegressionTree()
+
+    reg.fit(X=X_train, y=y_train, max_depth=5)
+    # Show rules
+    reg.print_rules()
+    # Model accuracy
+    get_r2(reg, X_test, y_test)
+
+
 if __name__ == "__main__":
-    test_continuous_continuous()
+    # test_continuous_continuous()
+    test_arbitrary_continuous()
