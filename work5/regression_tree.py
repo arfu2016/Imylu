@@ -89,6 +89,48 @@ class RegressionTree:
                      split_sqr_sum[1] - split_sum[1] * split_avg[1]]
         return sum(split_mse), split, split_avg
 
+    def _get_category_mse(self, X, y, idx, feature, category):
+        """Calculate the mse of each set when x is splitted into two parts.
+        MSE as Loss fuction:
+        y_hat = Sum(y_i) / n, i <- [1, n]
+        Loss(y_hat, y) = Sum((y_hat - y_i) ^ 2), i <- [1, n]
+        Loss = LossLeftNode+ LossRightNode
+        --------------------------------------------------------------------
+
+        Arguments:
+            X {list} -- 2d list object with int or float
+            y {list} -- 1d list object with int or float
+            idx {list} -- indexes, 1d list object with int
+            feature {int} -- Feature number, that is, column number of the dataframe
+            category {str} -- Category point of x
+
+        Returns:
+            tuple -- MSE, split point and average of splitted x in each intervel
+        """
+
+        split_sum = [0, 0]
+        split_cnt = [0, 0]
+        split_sqr_sum = [0, 0]
+        # Iterate each row and compare with the split point
+        for i in idx:
+            # idx are the selected rows of the dataframe
+            xi, yi = X[i][feature], y[i]
+            if xi == category:
+                split_cnt[0] += 1
+                split_sum[0] += yi
+                split_sqr_sum[0] += yi ** 2
+            else:
+                split_cnt[1] += 1
+                split_sum[1] += yi
+                split_sqr_sum[1] += yi ** 2
+        # Calculate the mse of y, D(X) = E{[X-E(X)]^2} = E(X^2)-[E(X)]^2
+        # 用y的均值来估计，减去实际的y的值
+        # num*E{[X-E(X)]^2} = num*E(X^2)-num*[E(X)]^2
+        split_avg = [split_sum[0] / split_cnt[0], split_sum[1] / split_cnt[1]]
+        split_mse = [split_sqr_sum[0] - split_sum[0] * split_avg[0],
+                     split_sqr_sum[1] - split_sum[1] * split_avg[1]]
+        return sum(split_mse), category, split_avg
+
     def _get_split_info(self, X, y, idx, feature, split):
         """Calculate the reduction of standard deviation of each set when x is
         splitted into two pieces.
@@ -222,7 +264,7 @@ class RegressionTree:
         unique.remove(min(unique))
         # Get split point which has min mse
         mse, split, split_avg = min(
-            (self._get_split_info(X, y, idx, feature, split)
+            (self._get_split_mse(X, y, idx, feature, split)
              # Here we can choose different algorithms
              # _get_split_mse _get_split_info
              for split in unique), key=lambda x: x[0])
@@ -250,7 +292,7 @@ class RegressionTree:
         # unique.remove(min(unique))
         # Get split point which has min mse
         mse, category_idx, split_avg = min(
-            (self._get_category_info(X, y, idx, feature, category)
+            (self._get_category_mse(X, y, idx, feature, category)
              for category in unique), key=lambda x: x[0])
         # logger.debug(split_avg)
         return mse, feature, category_idx, split_avg
