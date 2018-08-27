@@ -8,3 +8,6 @@
 2. desicion tree and regression tree
 Here we focus on part 2, and work6 will focus on part 1.
 """
+from work5.regression_tree import RegressionTree
+
+# __all__ = []

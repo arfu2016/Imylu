@@ -3,7 +3,7 @@
 @Module    : load_bike_data.py
 @Author    : Deco [deco@cubee.com]
 @Created   : 8/24/18 1:16 PM
-@Desc      : 
+@Desc      : 加载bike sharing data
 """
 from utils import load_to_df
 from work5.logger_setup import define_logger

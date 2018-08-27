@@ -6,6 +6,7 @@
 @Desc      : 
 """
 import copy
+from typing import List, TypeVar, Tuple, Union
 
 import numpy as np
 
@@ -15,14 +16,16 @@ from work5.utils import (load_boston_house_prices, train_test_split,
                          get_r2, run_time)
 
 logger = define_logger('work5.regression_tree')
+Num = TypeVar('Num', int, float)
+num_if = Union[int, float]
 
 
 class Node:
     def __init__(self, score: float = None):
         """Node class to build tree leaves.
 
-        Keyword Arguments:
-            score {float} -- prediction of y (default: {None})
+        Parameters:
+            score {float} -- prediction of y for a rule chain (default: {None})
         """
         self.score = score
 
@@ -43,13 +46,15 @@ class RegressionTree:
         Attributes:
         root: the root node of RegressionTree
         height: the height of RegressionTree
+        feature_types: the feature types of X
         """
 
         self.root = Node()
         self.height = 0
         self.feature_types = None
 
-    def _get_split_mse(self, X, y, idx, feature, split):
+    def _get_split_mse(self, X: List[List[num_if]], y: List[Num], idx: List[int],
+                       feature: int, split: Num) -> Tuple[float, Num, List[float]]:
         """Calculate the mse of each set when x is splitted into two pieces.
         MSE as Loss fuction:
         y_hat = Sum(y_i) / n, i <- [1, n], the average value in the interval
@@ -57,7 +62,7 @@ class RegressionTree:
         Loss = LossLeftNode+ LossRightNode
         --------------------------------------------------------------------
 
-        Arguments:
+        Parameters:
             X {list} -- 2d list object with int or float
             y {list} -- 1d list object with int or float
             idx {list} -- indexes, 1d list object with int
@@ -84,13 +89,15 @@ class RegressionTree:
                 split_sum[1] += yi
                 split_sqr_sum[1] += yi ** 2
         # Calculate the mse of y, D(X) = E{[X-E(X)]^2} = E(X^2)-[E(X)]^2
+        # Estimated by the mean of y, and then subtract the value of y
         # num*E{[X-E(X)]^2} = num*E(X^2)-num*[E(X)]^2
         split_avg = [split_sum[0] / split_cnt[0], split_sum[1] / split_cnt[1]]
         split_mse = [split_sqr_sum[0] - split_sum[0] * split_avg[0],
                      split_sqr_sum[1] - split_sum[1] * split_avg[1]]
         return sum(split_mse), split, split_avg
 
-    def _get_category_mse(self, X, y, idx, feature, category):
+    def _get_category_mse(self, X: List[List[num_if]], y: List[Num], idx: List[int],
+                          feature: int, category: str) -> Tuple[float, str, List[float]]:
         """Calculate the mse of each set when x is splitted into two parts.
         MSE as Loss fuction.
         --------------------------------------------------------------------
@@ -129,70 +136,18 @@ class RegressionTree:
                      split_sqr_sum[1] - split_sum[1] * split_avg[1]]
         return sum(split_mse), category, split_avg
 
-    def _info(self, y):
+    def _info(self, y: np.ndarray) -> np.ndarray:
         """Use the standard deviation to measure the magnitude of information
         用标准差的大小来表征连续变量的信息量的大小
-        Arguments:
-            y -- 1d list or numpy.ndarray object with int or float
+        Parameters:
+            y -- 1d numpy.ndarray object with int or float
+        Returns:
+            np.float64
         """
         return np.std(y)
 
-    def _get_split_info(self, X, y, idx, feature, split):
-        """Calculate the reduction of standard deviation of each set when x is
-        splitted into two pieces.
-        Reduction of standard deviation as Loss fuction, the maximal reduction is best
-        Or weighted standard deviation as loss function, the minimal value is best
-        std of the column - the weighted sum of std of the two groups
-        --------------------------------------------------------------------
-
-        Arguments:
-            X {list} -- 2d list object with int or float
-            y {list} -- 1d list object with int or float
-            idx {list} -- indexes, 1d list object with int
-            feature {int} -- Feature number, that is, column number of the dataframe
-            split {float} -- Split point of x
-
-        Returns:
-            tuple -- MSE, split point and average of splitted x in each intervel
-        """
-        select_x = [item[feature] for item in X]
-        select_x = np.array(select_x)
-        select_x = select_x[idx]
-        y = np.array(y)
-        select_y = y[idx]
-        low_y = select_y[select_x < split].mean()
-        high_y = select_y[select_x >= split].mean()
-        split_info = self.condition_info_continuous(select_x, select_y, split)
-        return split_info, split, [low_y, high_y]
-
-    def _get_category_info(self, X, y, idx, feature, category_idx):
-        """Calculate the standard deviation of each set when x is
-        splitted into two discrete parts.
-        The weighted standard deviation as loss function, the minimal value is best
-        std of the column - the weighted sum of std of the two groups
-        --------------------------------------------------------------------
-
-        Arguments:
-            X {list} -- 2d list object with int or float
-            y {list} -- 1d list object with int or float
-            idx {list} -- indexes, 1d list object with int
-            feature {int} -- Feature number, that is, column number of the dataframe
-            category_idx {str} -- Chosen category of x to conduct binary classification
-
-        Returns:
-            tuple -- MSE, classify point and average of splitted x in each intervel
-        """
-        X = np.array(X)
-        select_x = X[idx, feature]
-        y = np.array(y)
-        select_y = y[idx]
-        low_y = select_y[select_x == category_idx].mean()
-        high_y = select_y[select_x != category_idx].mean()
-        split_info = self.condition_info_categorical(
-            select_x, select_y, category_idx)
-        return split_info, category_idx, [low_y, high_y]
-
-    def condition_info_continuous(self, x, y, split):
+    def _condition_info_continuous(self, x: np.ndarray,
+                                  y: np.ndarray, split: Num) -> Num:
         """
         the weighted continuous information, X is continuous
         :param x: 1d numpy.array with int or float
@@ -211,29 +166,88 @@ class RegressionTree:
 
         return res
 
-    def condition_info_categorical(self, x, y, category_idx):
+    def _condition_info_categorical(self, x: np.ndarray, y: np.ndarray,
+                                    category: str) -> Num:
         """
         the weighted categorical information, X is categorical
         :param x: 1d numpy.array with str
         :param y: 1d numpy.array with int or float
-        :param category_idx: str
+        :param category: str
         :return: float
         """
-        low_rate = (x == category_idx).sum() / x.size
+        low_rate = (x == category).sum() / x.size
         high_rate = 1 - low_rate
 
-        low_info = self._info(y[np.where(x == category_idx)])
-        high_info = self._info(y[np.where(x != category_idx)])
+        low_info = self._info(y[np.where(x == category)])
+        high_info = self._info(y[np.where(x != category)])
 
         res = low_rate * low_info + high_rate * high_info
 
         return res
 
-    def _choose_split_point(self, X, y, idx, feature):
+    def _get_split_info(self, X: List[List[num_if]], y: List[Num], idx: List[int],
+                        feature: int, split: Num) -> Tuple[float, Num, List[float]]:
+        """Calculate the reduction of standard deviation of each set when x is
+        splitted into two pieces.
+        Reduction of standard deviation as Loss fuction, the maximal reduction is best
+        Or weighted standard deviation as loss function, the minimal value is best
+        std of the column - the weighted sum of std of the two groups
+        --------------------------------------------------------------------
+
+        Parameters:
+            X {list} -- 2d list object with int or float
+            y {list} -- 1d list object with int or float
+            idx {list} -- indexes, 1d list object with int
+            feature {int} -- Feature number, that is, column number of the dataframe
+            split {float} -- Split point of x
+
+        Returns:
+            tuple -- MSE, split point and average of splitted x in each intervel
+        """
+        select_x = [item[feature] for item in X]
+        select_x = np.array(select_x)
+        select_x = select_x[idx]
+        y = np.array(y)
+        select_y = y[idx]
+        low_y = select_y[select_x < split].mean()
+        high_y = select_y[select_x >= split].mean()
+        split_info = self._condition_info_continuous(select_x, select_y, split)
+        return split_info, split, [low_y, high_y]
+
+    def _get_category_info(self, X: List[List[num_if]], y: List[Num], idx: List[int],
+                           feature: int, category: str) -> Tuple[float, str, List[float]]:
+        """Calculate the standard deviation of each set when x is
+        splitted into two discrete parts.
+        The weighted standard deviation as loss function, the minimal value is best
+        std of the column - the weighted sum of std of the two parts
+        --------------------------------------------------------------------
+
+        Parameters:
+            X {list} -- 2d list object with int or float
+            y {list} -- 1d list object with int or float
+            idx {list} -- indexes, 1d list object with int
+            feature {int} -- Feature number, that is, column number of the dataframe
+            category {str} -- Chosen category of x to conduct binary classification
+
+        Returns:
+            tuple -- MSE, classify point and average of splitted x in each intervel
+        """
+        X = np.array(X)
+        select_x = X[idx, feature]
+        y = np.array(y)
+        select_y = y[idx]
+        low_y = select_y[select_x == category].mean()
+        high_y = select_y[select_x != category].mean()
+        split_info = self._condition_info_categorical(
+            select_x, select_y, category)
+        return split_info, category, [low_y, high_y]
+
+    def _choose_split_point(self, X: List[List[num_if]], y: List[Num], idx: List[int],
+                            feature: int):
         """Iterate each xi and split x, y into two pieces,
         and the best split point is the xi when we get minimum mse.
 
-        Arguments:
+        Parameters:
             X {list} -- 2d list object with int or float
             y {list} -- 1d list object with int or float
             idx {list} -- indexes, 1d list object with int
@@ -241,6 +255,7 @@ class RegressionTree:
 
         Returns:
             tuple -- The best choice of mse, feature, split point and average
+            could be None
         """
         # Feature cannot be splitted if there's only one unique element.
         unique = set([X[i][feature] for i in idx])
@@ -256,11 +271,12 @@ class RegressionTree:
              for split in unique), key=lambda x: x[0])
         return mse, feature, split, split_avg
 
-    def _choose_category_point(self, X, y, idx, feature):
+    def _choose_category_point(self, X: List[List[str]], y: List[Num],
+                               idx: List[int], feature: int):
         """Iterate each xi and classify x, y into two parts,
         and the best category point is the xi when we get minimum info or mse.
 
-        Arguments:
+        Parameters:
             X {list} -- 2d list with str
             y {list} -- 1d list object with int or float
             idx {list} -- indexes, 1d list object with int
@@ -268,6 +284,7 @@ class RegressionTree:
 
         Returns:
             tuple -- The best choice of mse, feature, category point and average
+            could be None
         """
         # Feature cannot be splitted if there's only one unique element.
         unique = set([X[i][feature] for i in idx])
@@ -277,7 +294,7 @@ class RegressionTree:
         # In case of empty split
 
         # unique.remove(min(unique))
-        #  We don't need this for categorical situation
+        # We don't need this for categorical situation
 
         # Get split point which has min mse
         mse, category_idx, split_avg = min(
@@ -288,7 +305,7 @@ class RegressionTree:
         # logger.debug(split_avg)
         return mse, feature, category_idx, split_avg
 
-    def _detect_feature_type(self, x):
+    def _detect_feature_type(self, x: list) -> int:
         """
         To determine the type of the feature
         :param x: 1d list with int, float or str
@@ -298,13 +315,13 @@ class RegressionTree:
             if item is not None:
                 return 1 if type(item) == str else 0
 
-    def _get_column(self, x, i):
+    def _get_column(self, x: list, i: int) -> list:
         return [item[i] for item in x]
 
-    def _choose_feature(self, X, y, idx):
+    def _choose_feature(self, X: list, y: List[Num], idx: List[int]):
         """Choose the feature which has minimum mse or minimal info.
 
-        Arguments:
+        Parameters:
             X {list} -- 2d list with int, float or str
             y {list} -- 1d list with int or float
             idx {list} -- indexes, 1d list object with int
@@ -352,11 +369,14 @@ class RegressionTree:
                     idx_split[1].append(i)
         return feature, split, split_avg, idx_split
 
-    def _expr2literal(self, expr):
+    def _expr2literal(self, expr: list) -> str:
         """Auxiliary function of print_rules.
 
-        Arguments:
+        Parameters:
             expr {list} -- 1D list like [Feature, op, split]
+
+        Op: In continuos situation, -1 means less than, 1 means equal or more than
+        In discrete situation, -1 means equal, 1 means not equal
 
         Returns:
             str
@@ -367,7 +387,7 @@ class RegressionTree:
             op = ">=" if op == 1 else "<"
             return "Feature%d %s %.4f" % (feature, op, split)
         if type(split) == str:
-            op = "==" if op == 1 else "!="
+            op = "!=" if op == 1 else "=="
             return "Feature%d %s %s" % (feature, op, split)
 
     def _get_rules(self):
@@ -380,7 +400,7 @@ class RegressionTree:
 
             Expr: 1D list like [Feature, op, split]
             Rule: 2D list like [[Feature, op, split], score]
-            Op: -1 means less than, 1 means equal or more than
+
         """
 
         que = [[self.root, []]]
@@ -405,17 +425,16 @@ class RegressionTree:
                 que.append([nd.right, rule_right])
         # logger.debug(self.rules)
 
-    def fit(self, X, y, max_depth=5, min_samples_split=2):
+    def fit(self, X: list, y: list, max_depth: int =5, min_samples_split: int =2):
         """Build a regression decision tree.
         Note:
             At least there's one column in X has more than 2 unique elements
             y cannot be all the same value
 
-        Position arguments:
-            X {list} -- 2d list object with int or float
+        Parameters:
+            X {list} -- 2d list object with int, float or str
             y {list} -- 1d list object with int or float
 
-        Keyword Arguments:
             max_depth {int} -- The maximum depth of the tree. (default: {2})
             min_samples_split {int} -- The minimum number of samples required
             to split an internal node (default: {2})
@@ -435,6 +454,7 @@ class RegressionTree:
         # logger.debug(que)
         # Breadth-First Search
         # 决策树是一层一层构建起来的，所以要用广度优先算法
+        depth = 0
         m = len(X[0])
         self.feature_types = [self._detect_feature_type(self._get_column(X, i))
                               for i in range(m)]
@@ -481,11 +501,11 @@ class RegressionTree:
             print("Rule %d: " % i, ' | '.join(
                 literals) + ' => split_hat %.4f' % score)
 
-    def _predict(self, row):
+    def _predict(self, row: list) -> float:
         """Auxiliary function of predict.
 
         Arguments:
-            row {list} -- 1D list with int or float
+            row {list} -- 1D list with int, float or str
 
         Returns:
             int or float -- prediction of yi
@@ -506,13 +526,14 @@ class RegressionTree:
                 else:
                     nd = nd.right
         return nd.score
+        # nd.score must be float?
 
-    def predict(self, X):
+    def predict(self, X: list) -> List[float]:
         """Get the prediction of y.
         Prediction in batch, 批量预测
 
         Arguments:
-            X {list} -- 2d list object with int or float
+            X {list} -- 2d list object with int, float or str
 
         Returns:
             list -- 1d list object with int or float
@@ -523,6 +544,7 @@ class RegressionTree:
 
 @run_time
 def test_continuous_continuous():
+    """test: x is continous, and y is continuous"""
     print("Tesing the accuracy of RegressionTree...")
     # Load data
     X, y = load_boston_house_prices()
@@ -541,6 +563,7 @@ def test_continuous_continuous():
 
 @run_time
 def test_arbitrary_continuous():
+    """test: x is continuous or categorical, and y is continuous"""
     print("Tesing the accuracy of RegressionTree...")
     # Load data
     X, y = load_bike_sharing_data()
@@ -557,6 +580,8 @@ def test_arbitrary_continuous():
     reg.print_rules()
     # Model accuracy
     get_r2(reg, X_test, y_test)
+    print('A prediction:', reg.predict(
+        ['1 0 1 0 0 6 1'.split() + [0.24, 0.81, 0.1]]), sep=' ')
 
 
 if __name__ == "__main__":
