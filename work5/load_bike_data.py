@@ -39,6 +39,7 @@ def transform_data():
 def load_bike_sharing_data():
     cnt_df = transform_data()
     # logger.debug(type(cnt_df.head().values.tolist()[0][0]))
+    # logger.debug(type(cnt_df.head().values.tolist()[0][-2]))
     logger.debug(cnt_df.head().iloc[:, :-1])
     return cnt_df.iloc[:, :-1].values.tolist(), cnt_df.iloc[:, -1].values.tolist()
 
