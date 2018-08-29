@@ -6,7 +6,8 @@
 @Desc      : 
 """
 import copy
-from typing import List, TypeVar, Tuple, Union
+# from collections import Iterable
+from typing import List, TypeVar, Tuple, Union, Iterable
 
 import numpy as np
 
@@ -21,11 +22,11 @@ num_if = Union[int, float]
 
 
 class Node:
-    def __init__(self, score: float = None):
+    def __init__(self, score: Num = None):
         """Node class to build tree leaves.
 
         Parameters:
-            score {float} -- prediction of y for a rule chain (default: {None})
+            score -- int or float, prediction of y for a rule chain (default: {None})
         """
         self.score = score
 
@@ -53,7 +54,9 @@ class RegressionTree:
         self.height = 0
         self.feature_types = None
 
-    def _get_split_mse(self, X: List[List[num_if]], y: List[Num], idx: List[int],
+    def _get_split_mse(self, X: List[List[num_if]],
+                       y: Iterable[Num],
+                       idx: Iterable[int],
                        feature: int, split: Num) -> Tuple[float, Num, List[float]]:
         """Calculate the mse of each set when x is splitted into two pieces.
         MSE as Loss fuction:
@@ -64,14 +67,19 @@ class RegressionTree:
 
         Parameters:
             X {list} -- 2d list object with int or float
-            y {list} -- 1d list object with int or float
-            idx {list} -- indexes, 1d list object with int
+            y {iterable} -- 1d list object with int or float
+            idx {iterable} -- indexes, 1d list object with int
             feature {int} -- Feature number, that is, column number of the dataframe
-            split {float} -- Split point of x
+            split -- int or float, Split point of x
 
         Returns:
             tuple -- MSE, split point and average of splitted x in each intervel
         """
+        # X: Iterable[Iterable[num_if]]
+        # X = [list(item) for item in X]
+        # 当矩阵很大时，上面这一步非常影响效率，从6s到26s
+        y = list(y)
+        idx = list(idx)
 
         split_sum = [0, 0]
         split_cnt = [0, 0]
@@ -584,6 +592,10 @@ def test_arbitrary_continuous():
         ['1 0 1 0 0 6 1'.split() + [0.24, 0.81, 0.1]]), sep=' ')
 
 
-if __name__ == "__main__":
+def run():
     # test_continuous_continuous()
     test_arbitrary_continuous()
+
+
+if __name__ == "__main__":
+    run()
