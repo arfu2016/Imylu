@@ -14,9 +14,12 @@ logger = define_logger('work5.load_bike_data')
 
 def transform_data():
     cnt_df = load_to_df('hour')
+    # data preprocessing
+    # step 1: drop unnecessary columns
     fields_to_drop = ['instant', 'dteday', 'atemp', 'workingday',
                       'casual', 'registered']
     cnt_df = cnt_df.drop(fields_to_drop, axis=1)
+    # step 2: type converting
     fields_to_convert = ['season', 'yr', 'mnth', 'hr', 'holiday', 'weekday',
                          'weathersit']
     for field in fields_to_convert:
