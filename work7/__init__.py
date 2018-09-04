@@ -5,11 +5,14 @@
 @Created   : 8/28/18 1:19 PM
 @Desc      : natural language understanding
 
+实体抽取：elastic search；模板规则，正则规则，词性规则，句法规则；word window classification
+不需要句向量的事件抽取和文本分类：模板规则，正则规则，句法规则
+
 事件抽取（实体抽取），文本分类
 prerequisite: sentence vector (nonparametric, parametric), paragraph vector
 
 event extraction and text classification:
-nonparametric: k nearest neighbors, decision tree, emd（地球物理）
+nonparametric: similarity, k nearest neighbors, decision tree, emd（地球物理）
 parametric: linear regression, logistic regression, softmax regression,
             support vector machine, neural net, cnn, rnn
 
