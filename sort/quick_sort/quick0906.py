@@ -57,19 +57,25 @@ def quick_sort2(nums, low, high):
         # 递归结束的条件：分的只剩一个元素
         return nums
     x = nums[high]
+    # 最右边的元素作为标杆元素
     # i作为所有小于标杆元素的右边界
     i = low - 1
+    # i从low - 1开始
     for j in range(low, high):
         # 元素小于标杆
         if nums[j] <= x:
+            # j表征的是小于等于x的值
             # i右移到大于标杆元素的左边界
             i += 1
+            # i表征的是大于x的值
+            # 加1表示i和j是同步的
             # 交换大于标杆元素的左边界，和当前这个小于标杆的元素
             nums[i], nums[j] = nums[j], nums[i]
             print(nums)
     print('i+1:', i+1)
     print('high:', high)
     nums[i + 1], nums[high] = nums[high], nums[i + 1]
+    # i是小于x的右边界，所以i+1必然大于x，把x换到中间来
     print(nums)
     print(i + 1)
     # if i + 1 == low:
