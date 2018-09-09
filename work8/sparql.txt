@@ -1,0 +1,28 @@
+场上哪些球员在同一个俱乐部效力（世界杯比赛）
+
+        SELECT DISTINCT ?x3 WHERE {
+          ?x0 aiball:type "俱乐部".
+          ?x1 aiball:currentTeam ?x0.
+          ?x2 aiball:currentTeam ?x0.
+          ?x1 aiball:belong "比赛阵容”.
+          ?x2 aiball:belong "比赛阵容".
+          ?x0 aiball:cnName ?x3.
+          FILTER(?x1 != ?x2).
+    
+        }
+
+场上球员效力于哪些俱乐部（世界杯比赛）
+
+SELECT DISTINCT ?x2 WHERE {
+  ?x0 aiball:currentTeam ?x1.
+  ?x1 aiball:type "俱乐部".
+  ?x0 aiball:belong "比赛阵容".
+  ?x1 aiball:cnName ?x2.
+}
+
+梅西身高
+
+select distinct ?x2 where {
+  ?x0 aiball:name “梅西”.
+  ?x1 aiball:height ?x2.
+}

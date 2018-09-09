@@ -1,0 +1,166 @@
+1. 类似的词，不同句法结构决定了不同的语义分类
+
+我喜欢郑智：球员基本介绍 喜欢与球员是动宾关系
+郑智喜欢什么车：进入闲聊 球员与喜欢是主谓关系
+
+我喜欢中国的郑智
+郑智到底喜欢什么车
+
+2. 信息抽取类的问题，而不是是非问题
+
+莱因克尔在什么比赛上演帽子戏法
+
+select distinct ?x2 {
+	?x0 aiball:name “莱因克尔”
+	?x0 aiball:hat_trick ?x1
+	?x1 aiball:description ?x2
+}
+
+xx在什么xx做xx
+
+马拉多纳在什么球队当教练
+
+select distinct ?x2 {
+	?x0 aiball:name “马拉多纳”
+	?x0 aiball:coach ?x1
+	?x1 aiball:description ?x2
+}
+
+关键是两个参数，一是名字，二是动作
+
+梅西的身高（定中关系）
+
+xx的xx
+
+阿森纳的队长
+
+内马尔转会（主谓关系）
+
+xx yy
+
+鲁尼打架
+
+马拉多纳怎么一球成名的
+
+xx怎么xx
+
+法国怎么夺冠的
+
+巴塞罗那培养过哪些法国球员
+
+xx做过哪些yy的zz
+
+李白写过哪些饮酒诗
+
+
+syntac_sparql/syntactic/template_base
+
+defaultdict(dict) 树结构，叶子的话，key的value是空字典
+
+class Trees:
+    def __init__(self, edges):
+        """Given a list of edges [parent, child], return trees. """
+        trees = defaultdict(dict)
+
+        for parent, child in edges:
+            trees[parent][child] = trees[child]
+
+        # Find roots
+        if len(edges) > 0:
+            parents, children = zip(*edges)
+            roots = set(parents).difference(children)
+            self.trees = {root: trees[root] for root in roots}
+        else:
+            self.trees = {}
+
+        # return [trees[root] for root in roots]
+	# 句法树只有一个root，所以是单棵树，而不是森林
+
+小树是大树的一部分，类似subtree，但不完全是subtree，需要改算法
+
+class CheckPartTree:
+    def isMatch(self, s, t):
+        """
+        s is the root of a large tree, t is the root of a small tree
+        两棵树完全相同，或者小树为None，或者小树的children是大树children的子集
+        :param s: dict
+        :param t: dict
+        :return: bool
+        """
+        if t == {}:
+            return True
+        if s == {}:
+            return False
+        troots = set([key for key in t.keys()])
+        sroots = set([key for key in s.keys()])
+        if not troots.issubset(sroots):
+            # print(1, troots, sroots)
+            return False
+        for troot in list(troots):
+            if not self.isMatch(s[troot], t[troot]):
+                # print(2, troot)
+                return False
+        return True
+
+    def isParttree(self, s, t):
+        if self.isMatch(s, t):
+            return True
+        sroots = [key for key in s.keys()]
+        for sroot in sroots:
+            if self.isParttree(s[sroot], t):
+                return True
+        return False
+
+
+def test_CheckPartTree():
+    a = [(3, 4), (3, 5), (4, 1), (4, 2)]
+    b = [(4, 1), (4, 2)]
+    atree = Trees(a)
+    btree = Trees(b)
+    result = CheckPartTree().isParttree(atree.trees, btree.trees)
+    print("True", result)
+
+    a = [(3, 4), (3, 5), (4, 1), (4, 2), (2, 0)]
+    b = [(4, 1), (4, 2)]
+    atree = Trees(a)
+    btree = Trees(b)
+    result = CheckPartTree().isParttree(atree.trees, btree.trees)
+    print("True", result)
+
+    a = [(3, 4), (3, 5), (4, 2), (2, 0)]
+    b = [(4, 1), (4, 2)]
+    atree = Trees(a)
+    btree = Trees(b)
+    result = CheckPartTree().isParttree(atree.trees, btree.trees)
+    print("False", result)
+
+    a = [(3, 4), (3, 5)]
+    b = [(4, 1), (4, 2)]
+    atree = Trees(a)
+    btree = Trees(b)
+    result = CheckPartTree().isParttree(atree.trees, btree.trees)
+    print("False", result)
+
+
+3. quepy，自然语言转为sparql，没有用句法分析，用的是正则 
+
+把sparql和一个图结构对应起来
+
+梅西的女友
+
+select distinct ?x2 {
+
+	?x0 aiball:name “梅西“
+	?x0 aiball:girlfriend ?x1
+	?x1 aiball:description ?x2
+}
+
+x0、x1是节点，x2是属性
+
+阿森纳的队长
+
+4.把模板树和相应的图结构对应起来
+
+5.设计模式中经典的strategy pattern （context, strategy）
+
+question是一个类，有一个template属性。有一个select_template方法：依次调用各个template类的match方法，拿到score，选出score最高的template类，赋值给template方法。question类有一个answer方法，调用对应template的query方法。
