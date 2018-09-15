@@ -163,4 +163,6 @@ x0、x1是节点，x2是属性
 
 5.设计模式中经典的strategy pattern （context, strategy）
 
-question是一个类，有一个template属性。有一个select_template方法：依次调用各个template类的match方法，拿到score，选出score最高的template类，赋值给template方法。question类有一个answer方法，调用对应template的query方法。
+question是一个类，有一个template属性。有一个select_template方法：依次调用各个template类的match方法，
+拿到score，选出score最高的template类，赋值给template属性。question类有一个answer方法，
+调用对应template的query方法。
